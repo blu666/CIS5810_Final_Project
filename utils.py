@@ -50,9 +50,11 @@ def findHomography(img1, img2, min_match=10, showMatches=False):
                         singlePointColor = None,
                         matchesMask = matchesMask, # draw only inliers
                         flags = 2)
-        img_match = cv2.drawMatches(img1,kp1,img2,kp2,good,None,**draw_params)
-        img_match = Image.fromarray((np.clip(img_match, 0, 1) * 255).astype(np.uint8))
-        img_match.save('result/match.jpg')
+        img_match = cv2.drawMatches(img_gray1,kp1,img_gray2,kp2,good,None,**draw_params)
+        img_match = cv2.cvtColor(img_match, cv2.COLOR_RGB2BGR)
+        cv2.imwrite('result/match.jpg', img_match)
+        # img_match = Image.fromarray((np.clip(img_match, 0, 1) * 255).astype(np.uint8))
+        # img_match.save('result/match.jpg')
 
     return M
 
