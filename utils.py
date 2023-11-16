@@ -58,6 +58,32 @@ def findHomography(img1, img2, min_match=10, showMatches=False):
 
     return M
 
+def findBoundingBox(img):
+    """
+    Find bounding box of single person in image
+
+    :return bbox: bounding box of person in image
+    """
+    # initialize the HOG descriptor
+    hog = cv2.HOGDescriptor()
+    hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+
+    # detect humans in input image
+    (humans, _) = hog.detectMultiScale(img, winStride=(10, 10),
+                                    padding=(32, 32), scale=1.1)
+
+    # Initialize an empty list to store bounding box coordinates
+    bounding_boxes = []
+
+    # loop over all detected humans
+    for (x, y, w, h) in humans:
+        pad_w, pad_h = int(0.15 * w), int(0.01 * h)
+        # Store the bounding box coordinates
+        bbox = (x + pad_w, y + pad_h, x + w - pad_w, y + h - pad_h)
+        bounding_boxes.append(bbox)
+
+    return bounding_boxes
+
 
 def findMask(img):
     """
