@@ -62,7 +62,7 @@ def findBoundingBox(img):
     """
     Find bounding box of single person in image
 
-    :return bbox: bounding box of person in image
+    :return bounding_boxes: bounding boxes of persons in image
     """
     # initialize the HOG descriptor
     hog = cv2.HOGDescriptor()
