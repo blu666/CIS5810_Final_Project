@@ -57,7 +57,7 @@ def findHomography(img1, img2, min_match=10, showMatches=False, filePath=None):
 
     return M
 
-def findBoundingBox(img):
+def findBoundingBox(img, winStride=(10, 10), padding=(32, 32), scale=1.05):
     """
     Find bounding box of single person in image
 
@@ -68,8 +68,8 @@ def findBoundingBox(img):
     hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
     # detect humans in input image
-    (humans, _) = hog.detectMultiScale(img, winStride=(10, 10),
-                                    padding=(32, 32), scale=1.05)
+    (humans, _) = hog.detectMultiScale(img, winStride=winStride,
+                                    padding=padding, scale=scale)
 
     # Initialize an empty list to store bounding box coordinates
     bounding_box = []
@@ -122,7 +122,7 @@ def bboxTransfer(img1, img2, bbox):
     new_img[:,:,0][np.where(mask)] = (img1[:,:,0][np.where(mask)]).flatten()
     new_img[:,:,1][np.where(mask)] = (img1[:,:,1][np.where(mask)]).flatten()
     new_img[:,:,2][np.where(mask)] = (img1[:,:,2][np.where(mask)]).flatten()
-    new_img.reshape(600, 800, 3)
+    new_img.reshape(img2.shape)
     return new_img
 
 
@@ -133,10 +133,10 @@ def maskTransfer(img1, img2, mask):
     :return res: blended image
     """
     new_img = img2.copy()
-    new_img[:,:,0][np.where(masks)] = (warped_img1[:,:,0][np.where(masks)]).flatten()
-    new_img[:,:,1][np.where(masks)] = (warped_img1[:,:,1][np.where(masks)]).flatten()
-    new_img[:,:,2][np.where(masks)] = (warped_img1[:,:,2][np.where(masks)]).flatten()
-    new_img.reshape(600, 800, 3)
+    new_img[:,:,0][np.where(mask)] = (img1[:,:,0][np.where(mask)]).flatten()
+    new_img[:,:,1][np.where(mask)] = (img1[:,:,1][np.where(mask)]).flatten()
+    new_img[:,:,2][np.where(mask)] = (img1[:,:,2][np.where(mask)]).flatten()
+    new_img.reshape(img2.shape)
     return new_img
 
 
@@ -146,13 +146,13 @@ def poissonBlending(img1, img2, mask):
     
     :return res: blended image
     """
-    masks = masks.astype(np.uint8) * 250
+    mask = mask.astype(np.uint8) * 250
     kernel = np.ones((10,10),np.uint8)
-    dialted_masks = cv2.dilate(masks,kernel, iterations = 1)
+    dialted_masks = cv2.dilate(mask,kernel, iterations = 1)
     contours, _ = cv2.findContours(dialted_masks, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     M = cv2.moments(contours[0])
     center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-    new_img2 = cv2.seamlessClone(warped_img1, img2, dialted_masks, center, cv2.NORMAL_CLONE)
+    new_img2 = cv2.seamlessClone(img1, img2, dialted_masks, center, cv2.NORMAL_CLONE)
     return new_img2
 
 
@@ -162,21 +162,22 @@ def gaussianMaskBlending(img1, img2, mask):
     
     :return res: blended image
     """
-    gauss_masks = cv2.GaussianBlur(masks.astype(np.uint8), (9, 9), 1)
-    masked_img1 = np.zeros(warped_img1.shape, dtype=np.float64)
+    gauss_masks = cv2.GaussianBlur(mask.astype(np.uint8), (9, 9), 1)
+    masked_img1 = np.zeros(img1.shape, dtype=np.float64)
     alpha = 0.5
-    masked_img1[:,:,0][np.where(masks)] = alpha * warped_img1[:,:,0][np.where(masks)].flatten() 
-    masked_img1[:,:,0][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,0][np.where(gauss_masks)].flatten()
-    masked_img1[:,:,1][np.where(masks)] = alpha * warped_img1[:,:,1][np.where(masks)].flatten()
-    masked_img1[:,:,1][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,1][np.where(gauss_masks)].flatten()
-    masked_img1[:,:,2][np.where(masks)] = alpha * warped_img1[:,:,2][np.where(masks)].flatten()
-    masked_img1[:,:,2][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,2][np.where(gauss_masks)].flatten()
+    masked_img1[:,:,0][np.where(mask)] = alpha * img1[:,:,0][np.where(mask)].flatten() 
+    masked_img1[:,:,0][np.where(gauss_masks)] += (1-alpha) * img1[:,:,0][np.where(gauss_masks)].flatten()
+    masked_img1[:,:,1][np.where(mask)] = alpha * img1[:,:,1][np.where(mask)].flatten()
+    masked_img1[:,:,1][np.where(gauss_masks)] += (1-alpha) * img1[:,:,1][np.where(gauss_masks)].flatten()
+    masked_img1[:,:,2][np.where(mask)] = alpha * img1[:,:,2][np.where(mask)].flatten()
+    masked_img1[:,:,2][np.where(gauss_masks)] += (1-alpha) * img1[:,:,2][np.where(gauss_masks)].flatten()
     masked_img1 = masked_img1.astype(np.uint8)
 
     new_img = img2.copy()
     new_img[:,:,0][np.where(gauss_masks)] = masked_img1[:,:,0][np.where(gauss_masks)].flatten()
     new_img[:,:,1][np.where(gauss_masks)] = masked_img1[:,:,1][np.where(gauss_masks)].flatten()
     new_img[:,:,2][np.where(gauss_masks)] = masked_img1[:,:,2][np.where(gauss_masks)].flatten()
+    new_img.reshape(img2.shape)
     return new_img
 
 
