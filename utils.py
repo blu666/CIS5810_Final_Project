@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from segment_anything import sam_model_registry, SamPredictor
 
-def findHomography(img1, img2, min_match=10, showMatches=False):
+def findHomography(img1, img2, min_match=10, showMatches=False, filePath=None):
     """
     Find homography between image 1 and image 2
 
@@ -51,7 +51,7 @@ def findHomography(img1, img2, min_match=10, showMatches=False):
                         flags = 2)
         img_match = cv2.drawMatches(img_gray1,kp1,img_gray2,kp2,good,None,**draw_params)
         img_match = cv2.cvtColor(img_match, cv2.COLOR_RGB2BGR)
-        cv2.imwrite('result/match.jpg', img_match)
+        cv2.imwrite(f'{filePath}/match.jpg', img_match)
         # img_match = Image.fromarray((np.clip(img_match, 0, 1) * 255).astype(np.uint8))
         # img_match.save('result/match.jpg')
 
@@ -82,6 +82,7 @@ def findBoundingBox(img):
         bbox = [x + pad_w, y + pad_h, x + w - pad_w, y + h - pad_h]
         if max_size < w * h:
             max_size = w * h
+            bounding_box = bbox
         # bounding_boxes.append(bbox)
 
     return np.array(bounding_box)
@@ -93,7 +94,7 @@ def findMask(img):
 
     :return mask: mask of image
     """
-    bboxes = findBoundingBox(img)
+    bbox = findBoundingBox(img)
     sam = sam_model_registry["vit_h"](checkpoint="sam_ckpt/sam_vit_h_4b8939.pth")
 
     predictor = SamPredictor(sam)
@@ -101,10 +102,10 @@ def findMask(img):
     masks, _, _ = predictor.predict(
                                     point_coords=None,
                                     point_labels=None,
-                                    box=bboxes[None, :],
+                                    box=bbox,
                                     multimask_output=False,
                                 )
-    return masks, bboxes
+    return masks, bbox
 
 
 def bboxTransfer(img1, img2, bbox):
@@ -223,17 +224,17 @@ if __name__ == "__main__":
     # # print(warped_img1.shape)
     bbox = findBoundingBox(warped_img1)
     # print(bbox)
-    # masks, bbox = findMask(warped_img1)
+    masks, bbox = findMask(warped_img1)
     # np.save('tmp/mask.npy', masks[0])
     # np.save('tmp/bbox.npy', bbox)
 
     
-    # plt.figure(figsize=(10, 10))
-    # plt.imshow(warped_img1)
-    # plt_mask(masks[0], plt.gca())
-    # plt_bbox(bbox, plt.gca())
-    # plt.savefig('result/bbox&mask.jpg')
-    # plt.show()
+    plt.figure(figsize=(10, 10))
+    plt.imshow(warped_img1)
+    plt_mask(masks, plt.gca())
+    plt_bbox(bbox, plt.gca())
+    plt.savefig('result/bbox&mask.jpg')
+    plt.show()
 
     # plt.figure(figsize=(10, 10))
     # bbox = np.load('tmp/bbox.npy')
@@ -257,26 +258,26 @@ if __name__ == "__main__":
 
 
 
-    plt.figure(figsize=(10, 10))
-    masks = np.load('tmp/mask.npy')
-    gauss_masks = cv2.GaussianBlur(masks.astype(np.uint8), (9, 9), 1)
-    masked_img1 = np.zeros(warped_img1.shape, dtype=np.float64)
-    alpha = 0.5
-    masked_img1[:,:,0][np.where(masks)] = alpha * warped_img1[:,:,0][np.where(masks)].flatten() 
-    masked_img1[:,:,0][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,0][np.where(gauss_masks)].flatten()
-    masked_img1[:,:,1][np.where(masks)] = alpha * warped_img1[:,:,1][np.where(masks)].flatten()
-    masked_img1[:,:,1][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,1][np.where(gauss_masks)].flatten()
-    masked_img1[:,:,2][np.where(masks)] = alpha * warped_img1[:,:,2][np.where(masks)].flatten()
-    masked_img1[:,:,2][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,2][np.where(gauss_masks)].flatten()
-    masked_img1 = masked_img1.astype(np.uint8)
-    # plt.imshow(masked_img1)
+    # plt.figure(figsize=(10, 10))
+    # masks = np.load('tmp/mask.npy')
+    # gauss_masks = cv2.GaussianBlur(masks.astype(np.uint8), (9, 9), 1)
+    # masked_img1 = np.zeros(warped_img1.shape, dtype=np.float64)
+    # alpha = 0.5
+    # masked_img1[:,:,0][np.where(masks)] = alpha * warped_img1[:,:,0][np.where(masks)].flatten() 
+    # masked_img1[:,:,0][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,0][np.where(gauss_masks)].flatten()
+    # masked_img1[:,:,1][np.where(masks)] = alpha * warped_img1[:,:,1][np.where(masks)].flatten()
+    # masked_img1[:,:,1][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,1][np.where(gauss_masks)].flatten()
+    # masked_img1[:,:,2][np.where(masks)] = alpha * warped_img1[:,:,2][np.where(masks)].flatten()
+    # masked_img1[:,:,2][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,2][np.where(gauss_masks)].flatten()
+    # masked_img1 = masked_img1.astype(np.uint8)
+    # # plt.imshow(masked_img1)
 
-    new_img2 = img2.copy()
-    new_img2[:,:,0][np.where(gauss_masks)] = masked_img1[:,:,0][np.where(gauss_masks)].flatten()
-    new_img2[:,:,1][np.where(gauss_masks)] = masked_img1[:,:,1][np.where(gauss_masks)].flatten()
-    new_img2[:,:,2][np.where(gauss_masks)] = masked_img1[:,:,2][np.where(gauss_masks)].flatten()
-    plt.imshow(new_img2)
-    plt.show()
+    # new_img2 = img2.copy()
+    # new_img2[:,:,0][np.where(gauss_masks)] = masked_img1[:,:,0][np.where(gauss_masks)].flatten()
+    # new_img2[:,:,1][np.where(gauss_masks)] = masked_img1[:,:,1][np.where(gauss_masks)].flatten()
+    # new_img2[:,:,2][np.where(gauss_masks)] = masked_img1[:,:,2][np.where(gauss_masks)].flatten()
+    # plt.imshow(new_img2)
+    # plt.show()
 
     # new_img = img2.copy()
     # new_img[:,:,0][np.where(masks)] = (warped_img1[:,:,0][np.where(masks)]).flatten()
@@ -316,4 +317,4 @@ if __name__ == "__main__":
     # plt.imshow(new_img3)
     # cv2.imwrite('result/combined_img3.jpg', cv2.cvtColor(new_img3, cv2.COLOR_RGB2BGR))
 
-    plt.show()
+    # plt.show()
