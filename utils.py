@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
 from segment_anything import sam_model_registry, SamPredictor
 
 def findHomography(img1, img2, min_match=10, showMatches=False):
@@ -73,16 +72,19 @@ def findBoundingBox(img):
                                     padding=(32, 32), scale=1.05)
 
     # Initialize an empty list to store bounding box coordinates
-    bounding_boxes = []
+    bounding_box = []
+    max_size = 0
 
     # loop over all detected humans
     for (x, y, w, h) in humans:
         pad_w, pad_h = int(0.15 * w), int(0.01 * h)
         # Store the bounding box coordinates
         bbox = [x + pad_w, y + pad_h, x + w - pad_w, y + h - pad_h]
-        bounding_boxes.append(bbox)
+        if max_size < w * h:
+            max_size = w * h
+        # bounding_boxes.append(bbox)
 
-    return np.array(bounding_boxes[0])
+    return np.array(bounding_box)
 
 
 def findMask(img):
@@ -105,12 +107,77 @@ def findMask(img):
     return masks, bboxes
 
 
+def bboxTransfer(img1, img2, bbox):
+    """
+    Transfer bounding box in image 1 to image 2
+    
+    :return res: blended image
+    """
+    new_img = img2.copy()
+    x0, y0 = bbox[0], bbox[1]
+    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    poly = np.array([[x0, y0], [x0, y0+h], [x0+w, y0+h], [x0+w, y0]], np.int32)
+    mask = cv2.fillPoly(np.zeros(img1.shape[:2], dtype=np.uint8), [poly], 255)
+    new_img[:,:,0][np.where(mask)] = (img1[:,:,0][np.where(mask)]).flatten()
+    new_img[:,:,1][np.where(mask)] = (img1[:,:,1][np.where(mask)]).flatten()
+    new_img[:,:,2][np.where(mask)] = (img1[:,:,2][np.where(mask)]).flatten()
+    new_img.reshape(600, 800, 3)
+    return new_img
+
+
+def maskTransfer(img1, img2, mask):
+    """
+    Transfer masked region in image 1 to image 2
+    
+    :return res: blended image
+    """
+    new_img = img2.copy()
+    new_img[:,:,0][np.where(masks)] = (warped_img1[:,:,0][np.where(masks)]).flatten()
+    new_img[:,:,1][np.where(masks)] = (warped_img1[:,:,1][np.where(masks)]).flatten()
+    new_img[:,:,2][np.where(masks)] = (warped_img1[:,:,2][np.where(masks)]).flatten()
+    new_img.reshape(600, 800, 3)
+    return new_img
+
+
 def poissonBlending(img1, img2, mask):
     """
     Poisson blending of masked region in image 1 and image 2
     
     :return res: blended image
     """
+    masks = masks.astype(np.uint8) * 250
+    kernel = np.ones((10,10),np.uint8)
+    dialted_masks = cv2.dilate(masks,kernel, iterations = 1)
+    contours, _ = cv2.findContours(dialted_masks, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    M = cv2.moments(contours[0])
+    center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+    new_img2 = cv2.seamlessClone(warped_img1, img2, dialted_masks, center, cv2.NORMAL_CLONE)
+    return new_img2
+
+
+def gaussianMaskBlending(img1, img2, mask):
+    """
+    Blending of masked region with added Gaussian Blur in image 1 and image 2
+    
+    :return res: blended image
+    """
+    gauss_masks = cv2.GaussianBlur(masks.astype(np.uint8), (9, 9), 1)
+    masked_img1 = np.zeros(warped_img1.shape, dtype=np.float64)
+    alpha = 0.5
+    masked_img1[:,:,0][np.where(masks)] = alpha * warped_img1[:,:,0][np.where(masks)].flatten() 
+    masked_img1[:,:,0][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,0][np.where(gauss_masks)].flatten()
+    masked_img1[:,:,1][np.where(masks)] = alpha * warped_img1[:,:,1][np.where(masks)].flatten()
+    masked_img1[:,:,1][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,1][np.where(gauss_masks)].flatten()
+    masked_img1[:,:,2][np.where(masks)] = alpha * warped_img1[:,:,2][np.where(masks)].flatten()
+    masked_img1[:,:,2][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,2][np.where(gauss_masks)].flatten()
+    masked_img1 = masked_img1.astype(np.uint8)
+
+    new_img = img2.copy()
+    new_img[:,:,0][np.where(gauss_masks)] = masked_img1[:,:,0][np.where(gauss_masks)].flatten()
+    new_img[:,:,1][np.where(gauss_masks)] = masked_img1[:,:,1][np.where(gauss_masks)].flatten()
+    new_img[:,:,2][np.where(gauss_masks)] = masked_img1[:,:,2][np.where(gauss_masks)].flatten()
+    return new_img
+
 
 def plt_mask(mask, ax, random_color=False):
     if random_color:
@@ -137,41 +204,116 @@ if __name__ == "__main__":
     H = findHomography(img1, img2, showMatches=True)
     # print(H)
 
-    # _, axs = plt.subplots(2, 2)
-    # axs[0, 0].imshow(img1)
-    # axs[0, 1].imshow(img2)
-    # axs[1, 0].imshow(cv2.warpPerspective(img1, H, (img1.shape[1], img1.shape[0])))
-    # # axs[1, 1].imshow()
+    _, axs = plt.subplots(2, 2)
+    axs[0, 0].imshow(img1)
+    axs[0, 0].set_axis_off()
+    axs[0, 0].set_title("Original Image 1")
+    axs[0, 1].imshow(img2)
+    axs[0, 1].set_axis_off()
+    axs[0, 1].set_title("Original Image 2")
+    axs[1, 0].imshow(cv2.warpPerspective(img1, H, (img1.shape[1], img1.shape[0])))
+    axs[1, 0].set_axis_off()
+    axs[1, 0].set_title("Warped Image 1")
+    plt.axis('off')
+    plt.savefig('result/homography.jpg')
+    
     # plt.show()
     warped_img1 = cv2.warpPerspective(img1, H, (img1.shape[1], img1.shape[0]))
     # cv2.imwrite('result/warped_img1.jpg', cv2.cvtColor(warped_img1, cv2.COLOR_RGB2BGR))
-    # print(warped_img1.shape)
-    # bbox = findBoundingBox(warped_img1)
+    # # print(warped_img1.shape)
+    bbox = findBoundingBox(warped_img1)
     # print(bbox)
     # masks, bbox = findMask(warped_img1)
     # np.save('tmp/mask.npy', masks[0])
     # np.save('tmp/bbox.npy', bbox)
 
-    # print(bbox)
+    
     # plt.figure(figsize=(10, 10))
     # plt.imshow(warped_img1)
     # plt_mask(masks[0], plt.gca())
     # plt_bbox(bbox, plt.gca())
-    # plt.axis('off')
+    # plt.savefig('result/bbox&mask.jpg')
     # plt.show()
 
-    masks = np.load('tmp/mask.npy')
-    # print(np.sum(masks))
+    # plt.figure(figsize=(10, 10))
     # bbox = np.load('tmp/bbox.npy')
-    new_img = img2.copy()
-    new_img[:,:,0][np.where(masks)] = (warped_img1[:,:,0][np.where(masks)]).flatten()
-    new_img[:,:,1][np.where(masks)] = (warped_img1[:,:,1][np.where(masks)]).flatten()
-    new_img[:,:,2][np.where(masks)] = (warped_img1[:,:,2][np.where(masks)]).flatten()
-    # new_image[:,:,1] = masks * warped_img1[:,:,1]
-    # new_img[:,:,0] = np.where(masks[0], img2[:,:,0], warped_img1[:,:,0])
-    # new_img[:,:,1] = np.where(masks[0], img2[:,:,1], warped_img1[:,:,1])
-    # new_img[:,:,2] = np.where(masks[0], img2[:,:,2], warped_img1[:,:,2])
-    new_img.reshape(600, 800, 3)
-    plt.imshow(new_img)
-    cv2.imwrite('result/combined_img.jpg', cv2.cvtColor(new_img, cv2.COLOR_RGB2BGR))
+    # print(bbox)
+    # x0, y0 = bbox[0], bbox[1]
+    # w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    # print(bbox)
+    # poly = np.array([[x0, y0], [x0, y0+h], [x0+w, y0+h], [x0+w, y0]], np.int32)
+    # mask = cv2.fillPoly(np.zeros(warped_img1.shape[:2], dtype=np.uint8), [poly], 255)
+    # new_img = img2.copy()
+    # new_img[:,:,0][np.where(mask)] = (warped_img1[:,:,0][np.where(mask)]).flatten()
+    # new_img[:,:,1][np.where(mask)] = (warped_img1[:,:,1][np.where(mask)]).flatten()
+    # new_img[:,:,2][np.where(mask)] = (warped_img1[:,:,2][np.where(mask)]).flatten()
+    # new_img.reshape(600, 800, 3)
+    # plt.imshow(new_img)
+    # center = (int(x0 + w * 0.5), int(y0 + h * 0.5))
+    # print(center)
+    # new_img2 = cv2.seamlessClone(warped_img1, img2, mask, center, cv2.NORMAL_CLONE)
+    # plt.imshow(new_img2)
+    # plt.show()
+
+
+
+    plt.figure(figsize=(10, 10))
+    masks = np.load('tmp/mask.npy')
+    gauss_masks = cv2.GaussianBlur(masks.astype(np.uint8), (9, 9), 1)
+    masked_img1 = np.zeros(warped_img1.shape, dtype=np.float64)
+    alpha = 0.5
+    masked_img1[:,:,0][np.where(masks)] = alpha * warped_img1[:,:,0][np.where(masks)].flatten() 
+    masked_img1[:,:,0][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,0][np.where(gauss_masks)].flatten()
+    masked_img1[:,:,1][np.where(masks)] = alpha * warped_img1[:,:,1][np.where(masks)].flatten()
+    masked_img1[:,:,1][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,1][np.where(gauss_masks)].flatten()
+    masked_img1[:,:,2][np.where(masks)] = alpha * warped_img1[:,:,2][np.where(masks)].flatten()
+    masked_img1[:,:,2][np.where(gauss_masks)] += (1-alpha) * warped_img1[:,:,2][np.where(gauss_masks)].flatten()
+    masked_img1 = masked_img1.astype(np.uint8)
+    # plt.imshow(masked_img1)
+
+    new_img2 = img2.copy()
+    new_img2[:,:,0][np.where(gauss_masks)] = masked_img1[:,:,0][np.where(gauss_masks)].flatten()
+    new_img2[:,:,1][np.where(gauss_masks)] = masked_img1[:,:,1][np.where(gauss_masks)].flatten()
+    new_img2[:,:,2][np.where(gauss_masks)] = masked_img1[:,:,2][np.where(gauss_masks)].flatten()
+    plt.imshow(new_img2)
+    plt.show()
+
+    # new_img = img2.copy()
+    # new_img[:,:,0][np.where(masks)] = (warped_img1[:,:,0][np.where(masks)]).flatten()
+    # new_img[:,:,1][np.where(masks)] = (warped_img1[:,:,1][np.where(masks)]).flatten()
+    # new_img[:,:,2][np.where(masks)] = (warped_img1[:,:,2][np.where(masks)]).flatten()
+    # new_img.reshape(600, 800, 3)
+    # plt.imshow(new_img)
+    # cv2.imwrite('result/combined_img.jpg', cv2.cvtColor(new_img, cv2.COLOR_RGB2BGR))
+    
+    # # print(sum(masks.astype(np.uint8)))
+    # # plt.imshow(masks)
+    
+    # masked_img2 = img2.copy()
+    # masked_img2[:,:,0][np.where(masks)] = 100
+    # masked_img2[:,:,1][np.where(masks)] = 100
+    # masked_img2[:,:,2][np.where(masks)] = 100
+    # plt.imshow(masked_img2)
+    # plt.show()
+
+    # masks = masks.astype(np.uint8) * 250
+    # kernel = np.ones((10,10),np.uint8)
+    # dialted_masks = cv2.dilate(masks,kernel, iterations = 1)
+    # contours, _ = cv2.findContours(dialted_masks, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    # M = cv2.moments(contours[0])
+    # center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+    # print(center)
+    # # plt.imshow(dialted_masks) 
+    # # masks = cv2.bitwise_and(masks, dialted_masks, mask=dialted_masks)
+    # # plt.imshow(masks)
+    # # masks = np.stack([masks, masks, masks], axis=2)
+    # # print()
+    # new_img2 = cv2.seamlessClone(warped_img1, masked_img2, dialted_masks, center, cv2.NORMAL_CLONE)
+    # plt.imshow(new_img2)
+    # cv2.imwrite('result/combined_img2.jpg', cv2.cvtColor(new_img2, cv2.COLOR_RGB2BGR))
+
+    # new_img3 = cv2.addWeighted(new_img, 0.5, new_img2, 0.5, 0)
+    # plt.imshow(new_img3)
+    # cv2.imwrite('result/combined_img3.jpg', cv2.cvtColor(new_img3, cv2.COLOR_RGB2BGR))
+
     plt.show()
