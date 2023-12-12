@@ -224,7 +224,7 @@ if __name__ == "__main__":
     # # print(warped_img1.shape)
     bbox = findBoundingBox(warped_img1)
     # print(bbox)
-    masks, bbox = findMask(warped_img1)
+    masks = findMask(warped_img1, bbox)
     # np.save('tmp/mask.npy', masks[0])
     # np.save('tmp/bbox.npy', bbox)
 
