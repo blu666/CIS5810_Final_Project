@@ -88,13 +88,12 @@ def findBoundingBox(img, winStride=(10, 10), padding=(32, 32), scale=1.05):
     return np.array(bounding_box)
 
 
-def findMask(img):
+def findMask(img, bbox):
     """
     Find mask of single person in image
 
     :return mask: mask of image
     """
-    bbox = findBoundingBox(img)
     sam = sam_model_registry["vit_h"](checkpoint="sam_ckpt/sam_vit_h_4b8939.pth")
 
     predictor = SamPredictor(sam)
@@ -105,7 +104,7 @@ def findMask(img):
                                     box=bbox,
                                     multimask_output=False,
                                 )
-    return masks, bbox
+    return masks
 
 
 def bboxTransfer(img1, img2, bbox):
