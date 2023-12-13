@@ -8,12 +8,10 @@ Email: luyijie@seas.upenn.edu, yucao7@seas.upenn.edu
 Final Project for CIS5810 at University of Pennsylvania in Fall 2023.
 
 
-Before you start......
 
-  Make sure you have the following packages installed and set up. Note that you should have the same version specified in the requirements.txt.
-
-  The package segment_anything is a bit different when setting up. You should set it up following the instructions here: https://github.com/facebookresearch/segment-anything/tree/main 
+Before you start...... Make sure you have the following packages installed and set up. Note that you should have the same version specified in the requirements.txt. The package segment_anything is a bit different when setting up. You should set it up following the instructions here: https://github.com/facebookresearch/segment-anything/tree/main 
    (in the installation part)
+
 
 
 Structure of our repo:
@@ -30,6 +28,7 @@ Structure of our repo:
 6. Empty_Template_for_Use.ipynb: We leave out an empty template for you to use if you want to try our model on a new set of photos of your choice. Make sure you have everything set up as specified. Follow the steps and instructions outlined in the notebook, then you will see the magic of computer vision algorithms!
 
 7. demo.ipynb, demo2.ipynb, demo3.ipynb: These are the demos we included in our final report. You can find the input images and output images in the folder 'Images' and 'result' for your reference. 
+
 
 
 How to run our code:
