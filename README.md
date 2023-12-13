@@ -10,9 +10,10 @@ Final Project for CIS5810 at University of Pennsylvania in Fall 2023.
 
 Before you start......
 
-Make sure you have the following packages installed and set up. Note that you should have the same version specified in the requirements.txt.
+  Make sure you have the following packages installed and set up. Note that you should have the same version specified in the requirements.txt.
 
-The package segment_anything is a bit different when setting up. You should set it up following the instructions here: https://github.com/facebookresearch/segment-anything/tree/main (in the installation part)
+  The package segment_anything is a bit different when setting up. You should set it up following the instructions here: https://github.com/facebookresearch/segment-anything/tree/main 
+   (in the installation part)
 
 
 Structure of our repo:
